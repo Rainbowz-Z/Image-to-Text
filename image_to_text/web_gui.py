@@ -180,6 +180,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 
         .result-area {
             margin-top: 20px;
+            position: relative;
         }
 
         .result-area label {
@@ -201,6 +202,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
             resize: vertical;
             font-family: inherit;
             transition: border-color 0.3s;
+            overflow-x: auto;
         }
 
         .result-area textarea:focus {
@@ -210,24 +212,29 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
 
         .status-bar {
             margin-top: 15px;
-            padding: 10px 15px;
-            background: #f5f5f5;
-            border-radius: 8px;
-            color: #666;
+            padding: 12px 20px;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
+            border-radius: 10px;
+            color: #4a5568;
             font-size: 14px;
+            font-weight: 500;
             text-align: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+            border: 1px solid rgba(0, 0, 0, 0.05);
         }
 
         .spinner {
             display: none;
-            width: 18px;
-            height: 18px;
-            border: 3px solid #ddd;
+            width: 16px;
+            height: 16px;
+            border: 2px solid #e2e8f0;
             border-radius: 50%;
             border-top-color: #667eea;
-            animation: spin 0.8s ease-in-out infinite;
+            animation: spin 0.8s linear infinite;
             margin-left: 8px;
             vertical-align: middle;
+            position: relative;
+            top: -2px;
         }
 
         .spinner.active {
@@ -259,12 +266,12 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
         </div>
 
         <div class="preview-area" id="previewArea">
-            <span class="placeholder">请截图或者选择图片...</span>
+            <span class="placeholder">请截图或者选择图片 . . .</span>
         </div>
 
         <div class="result-area">
             <label>识别结果：</label>
-            <textarea id="resultText" readonly placeholder="识别结果将显示在这里..."></textarea>
+            <textarea id="resultText" readonly wrap="off" placeholder="识别结果将显示在这里 . . ."></textarea>
         </div>
 
         <div class="status-bar" id="statusBar">就绪<span class="spinner" id="spinner"></span></div>
@@ -292,8 +299,8 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
         function setStatus(msg, showSpinner) {
             var bar = document.getElementById('statusBar');
             var spinner = document.getElementById('spinner');
+
             if (showSpinner === undefined) {
-                // 默认：识别和截图时显示 spinner
                 showSpinner = msg.indexOf('识别') !== -1 || msg.indexOf('截图') !== -1;
             }
             if (showSpinner) {
@@ -303,6 +310,25 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
             }
             bar.textContent = msg;
             bar.appendChild(spinner);
+        }
+
+        var loadingTimer = null;
+        function startLoadingAnimation() {
+            var resultText = document.getElementById('resultText');
+            var dots = ['', ' .', ' . .', ' . . .'];
+            var i = 0;
+            resultText.value = '识别中，请稍候';
+            loadingTimer = setInterval(function() {
+                resultText.value = '识别中，请稍候' + dots[i % dots.length];
+                i++;
+            }, 500);
+        }
+
+        function stopLoadingAnimation() {
+            if (loadingTimer) {
+                clearInterval(loadingTimer);
+                loadingTimer = null;
+            }
         }
 
         function setButtonsEnabled(enabled) {
@@ -322,7 +348,7 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
         }
 
         function takeScreenshot() {
-            setStatus('正在截图...');
+            setStatus('正在截图 . . .', false);
 
             fetch('/api/screenshot', {
                 method: 'POST',
@@ -334,9 +360,9 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
                 if (data.success) {
                     showPreview(data.image_base64);
                     // 截图完成后，清空识别结果并显示加载提示
-                    document.getElementById('resultText').value = '⏳ 识别中，请稍候...';
+                    startLoadingAnimation();
                     document.getElementById('btnCopy').disabled = true;
-                    setStatus('截图成功，正在识别...', true);
+                    setStatus('截图成功', false);
                     return fetch('/api/recognize', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
@@ -350,15 +376,20 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    document.getElementById('resultText').value = data.text;
+                    stopLoadingAnimation();
+                    var resultText = document.getElementById('resultText');
+                    resultText.value = data.text;
+                    resultText.placeholder = data.text ? '识别结果将显示在这里 . . .' : '';
                     document.getElementById('btnCopy').disabled = !data.text;
                     setStatus('识别完成 - 共 ' + data.text.length + ' 个字符', false);
                 } else {
+                    stopLoadingAnimation();
                     setStatus('识别失败: ' + (data.error || '未知错误'), false);
                 }
             })
             .catch(err => {
                 if (err.message !== '截图失败') {
+                    stopLoadingAnimation();
                     setStatus('请求失败: ' + err.message, false);
                 }
             });
@@ -372,14 +403,15 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
             const file = event.target.files[0];
             if (!file) return;
 
-            setStatus('正在读取图片...', true);
+            setStatus('正在读取图片 . . .', true);
             setButtonsEnabled(false);
 
             const reader = new FileReader();
             reader.onload = function(e) {
                 const base64Data = e.target.result;
                 showPreview(base64Data);
-                setStatus('图片已加载，正在识别...', true);
+                setStatus('图片已加载', false);
+                startLoadingAnimation();
 
                 fetch('/api/recognize_file', {
                     method: 'POST',
@@ -389,15 +421,18 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
+                        stopLoadingAnimation();
                         document.getElementById('resultText').value = data.text;
                         document.getElementById('btnCopy').disabled = !data.text;
                         setStatus('识别完成 - 共 ' + data.text.length + ' 个字符', false);
                     } else {
+                        stopLoadingAnimation();
                         setStatus('识别失败: ' + (data.error || '未知错误'), false);
                     }
                     setButtonsEnabled(true);
                 })
                 .catch(err => {
+                    stopLoadingAnimation();
                     setStatus('请求失败: ' + err.message, false);
                     setButtonsEnabled(true);
                 });
@@ -534,7 +569,7 @@ class OCRHandler(BaseHTTPRequestHandler):
                             width = abs(x2 - x1)
                             height = abs(y2 - y1)
 
-                            if width > 10 and height > 10:
+                            if width > 0 and height > 0:
                                 cropped = screenshot.crop((left, top, left + width, top + height))
                                 temp_dir = tempfile.gettempdir()
                                 result_path = os.path.join(temp_dir, "selected_region.png")
@@ -562,17 +597,22 @@ class OCRHandler(BaseHTTPRequestHandler):
                 width = abs(x2 - x1)
                 height = abs(y2 - y1)
 
-                pygame.draw.line(screen, (0, 255, 0), (left, top), (left, top + height), cross_width)
-                pygame.draw.line(screen, (0, 255, 0), (left, top), (left + width, top), cross_width)
+                # 绘制四条边
+                pygame.draw.line(screen, (0, 255, 0), (left, top), (left, top + height), cross_width)  # 左边
+                pygame.draw.line(screen, (0, 255, 0), (left, top), (left + width, top), cross_width)  # 上边
+                pygame.draw.line(screen, (0, 255, 0), (left + width, top), (left + width, top + height), cross_width)  # 右边
+                pygame.draw.line(screen, (0, 255, 0), (left, top + height), (left + width, top + height), cross_width)  # 下边
 
-                if width > 50 and height > 20:
+                if width > 0 and height > 0:
                     size_text = f"{width} x {height}"
                     text_surface = font.render(size_text, True, (255, 255, 255))
                     text_bg = pygame.Surface((text_surface.get_width() + 10, text_surface.get_height() + 6))
                     text_bg.fill((0, 0, 0))
                     text_bg.set_alpha(180)
-                    screen.blit(text_bg, (left + 5, top - 30))
-                    screen.blit(text_surface, (left + 10, top - 27))
+                    # 如果文字在屏幕外面，移到矩形内部显示
+                    text_y = top - 30 if top > 35 else top + 5
+                    screen.blit(text_bg, (left + 5, text_y))
+                    screen.blit(text_surface, (left + 10, text_y + 3))
 
             # 绘制绿色十字光标
             mx, my = mouse_pos

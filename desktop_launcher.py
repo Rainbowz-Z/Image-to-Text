@@ -54,7 +54,7 @@ def main():
             title="Image-to-Text 文字识别",
             url=f'http://localhost:{port}',
             width=950,
-            height=750,
+            height=820,
             resizable=True,
             text_select=True,
         )

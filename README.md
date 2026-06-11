@@ -2,11 +2,14 @@
 
 截图或选择图片，自动识别文字并复制到剪贴板。
 
+![界面预览](preview.jpg)
+
 ## 功能
 
 - 截图识别：点击按钮进行区域截图，自动识别文字
 - 图片识别：选择本地图片文件进行识别
 - 一键复制：识别完成后手动点击按钮复制到剪贴板
+- 显示/隐藏窗口：截图时可隐藏主窗口，避免遮挡
 
 ## 安装
 
@@ -42,6 +45,7 @@ Image-to-Text/
 ├── run-desktop.vbs          # 静默启动
 ├── requirements.txt         # 依赖
 ├── config.ini               # API 配置
+├── preview.jpg              # 界面预览图
 ├── README.md
 └── image_to_text/
     ├── __init__.py
