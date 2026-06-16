@@ -1,14 +1,58 @@
 import os
+import sys
 import base64
 import configparser
 from openai import OpenAI
 
 
+def _resolve_config_path():
+    """决定要读的 config.ini 路径
+
+    优先级：
+    1. PyInstaller 冻结 (sys.frozen) → exe 同目录
+    2. 源码运行 → 当前包的上级目录（项目根）
+    3. PyInstaller 资源目录 (_MEIPASS) → 打包内置配置
+    4. 都找不到 → 返回 None，调用方走默认配置
+    """
+    # 打包后优先读取 exe 同目录的 config.ini（方便用户修改）
+    if getattr(sys, 'frozen', False):
+        exe_dir = os.path.dirname(sys.executable)
+        return os.path.join(exe_dir, 'config.ini')
+
+    # 源码运行：项目根目录
+    source_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config.ini')
+    if os.path.exists(source_path):
+        return source_path
+
+    # PyInstaller 资源目录
+    internal_dir = getattr(sys, '_MEIPASS', None)
+    if internal_dir:
+        internal_path = os.path.join(internal_dir, 'config.ini')
+        if os.path.exists(internal_path):
+            return internal_path
+
+    return None
+
+
+_DEFAULT_CONFIG = {
+    'api': {
+        'api_key': '',
+        'endpoint_id': '',
+        'base_url': 'https://ark.cn-beijing.volces.com/api/v3',
+    }
+}
+
+
 def _load_config():
     """加载配置文件"""
     config = configparser.ConfigParser()
-    config_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'config.ini')
-    config.read(config_path, encoding='utf-8')
+    config_path = _resolve_config_path()
+
+    if config_path and os.path.exists(config_path):
+        config.read(config_path, encoding='utf-8')
+    else:
+        config.read_dict(_DEFAULT_CONFIG)
+
     return config
 
 
